@@ -20,7 +20,7 @@ A tool to visually map and pinpoint the exact locations of drone aerial photos/p
 
 3. 填写需要填写的其他信息，点击保存。将JSON文件保存到影像/点云同目录即可。
 
-4. 软件保存的缩略图为右侧预览结果，请务必保证左侧有正确显示的缩略图！
+4. 软件保存的缩略图为右侧预览结果，请务必保证右侧有正确显示的缩略图！
 
 ![设置页面](https://github.com/Mime-AL/UAV_dataMap/blob/main/imgs/img3.png?raw=true)
 
