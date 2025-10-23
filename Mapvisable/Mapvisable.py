@@ -33,18 +33,21 @@ def get_base64_encoded_image(image_path):
         return None
 
 def pathButton():
-    global dataPath
-    dataPath = filedialog.askdirectory()
-    if dataPath == "":
+    new_path = filedialog.askdirectory()
+    if new_path == "":
         return
     else:
-        entry1.delete(0, tk.END)
-        entry1.insert(0, dataPath)
+        current_text = text1.get("1.0", tk.END).strip()
+        if current_text:
+            text1.insert(tk.END, "\n" + new_path)
+        else:
+            text1.insert(tk.END, new_path)
 
 def saveButton():
     global dataPath
     global APIKey
-    dataPath = entry1.get()
+    content = text1.get("1.0", tk.END).strip()
+    dataPath = [line for line in content.split('\n') if line.strip()]
     APIKey = entry2.get()
     config = {
         "setings": {
@@ -61,10 +64,10 @@ def StartLeafletMap():
     map = folium.Map(location=[26.0, 119.0], zoom_start=5, tiles=None)
     #设置图例
     icon_map = {
-        0: get_base64_encoded_image(resource_path(r"./data/tip-green.png")),
+        0: get_base64_encoded_image(resource_path(r"./data/tip-violet.png")),
         1: get_base64_encoded_image(resource_path(r"./data/tip-blue.png")),
         2: get_base64_encoded_image(resource_path(r"./data/tip-red.png")),
-        3: get_base64_encoded_image(resource_path(r"./data/tip-violet.png")),
+        3: get_base64_encoded_image(resource_path(r"./data/tip-black.png")),
     }
     default_icon = get_base64_encoded_image(resource_path(r"./data/tip-black.png"))
     #添加底图
@@ -109,7 +112,16 @@ def StartLeafletMap():
         x = row[10]
         y = row[11]
         safe_path = path.replace('\\', '/')
-        popup_text = f"文件路径: {safe_path}<br>平台类型: {base}<br>文件类型: {type}<br>备注: {remark}"
+        #type显示时转换为可读文本
+        if type == 0:
+            type_text = "可见光"
+        elif type == 1:
+            type_text = "多光谱"
+        elif type == 2:
+            type_text = "点云"
+        elif type == 3:
+            type_text = "其他文件"
+        popup_text = f"文件路径: {safe_path}<br>平台类型: {base}<br>文件类型: {type_text}<br>备注: {remark}"
         if img and os.path.exists(img):
             encoded = base64.b64encode(open(img, 'rb').read()).decode()
             img_html = f'<img src="data:image/png;base64,{encoded}" width="200"><br>'
@@ -141,29 +153,47 @@ def mapButtonWithoutUpdate():
 def mapButtonWithUpdate():
     global APIKey
     APIKey = entry2.get()
+    content = text1.get("1.0", tk.END).strip()
+    dataPath = [line for line in content.split('\n') if line.strip()]
     #设置数据库中的数据为不可用
     conn = sqlite3.connect(dbPath)
     cursor = conn.cursor()
     cursor.execute("UPDATE datamap SET AVAIABLE = 0;")
     conn.commit()
     #遍历数据路径文件夹
-    global dataPath
     if dataPath == "":
         messagebox.showinfo("提示", "数据路径不能为空")
         return
-    if not os.path.exists(dataPath):
-        messagebox.showinfo("提示", "数据路径不存在")
+    #检查文件
+    scanWin = tk.Toplevel(startPage)
+    scanWin.title("数据扫描")
+    scanWin.geometry("420x80")
+    scanWin.resizable(False, False)
+    scan_label = tk.Label(scanWin, text="正在扫描数据路径，请稍候...")
+    scan_label.pack(padx=10, pady=10)
+    scanWin.update()
+    all_files = []
+    for path in dataPath:
+        scan_label.config(text=f"正在扫描: {path}")
+        scanWin.update_idletasks()
+        if not os.path.exists(path):
+            messagebox.showinfo("提示", f"数据路径不存在: {path}")
+            continue
+        Path = pathlib.Path(path)
+        all_files.extend(list(Path.rglob('*.json')))
+    scanWin.destroy()
+    if not all_files:
+        messagebox.showinfo("提示", "数据路径下没有找到任何JSON文件")
         return
-    Path = pathlib.Path(dataPath)
-    fileList = list(Path.rglob('*'))
+    #处理数据
     progressWin = tk.Toplevel(startPage)
     progressWin.title("数据处理进度")
     progressWin.geometry("420x80")
     progressWin.resizable(False, False)
     progress = ttk.Progressbar(progressWin, orient=tk.HORIZONTAL, length=400, mode='determinate')
     progress.pack(padx=10, pady=20)
-    progress['maximum'] = len(fileList)
-    for filePath in fileList:
+    progress['maximum'] = len(all_files)
+    for filePath in all_files:
         #检查文件是否是json
         if filePath.suffix != ".json":
             progress['value'] += 1
@@ -279,7 +309,7 @@ if __name__ == "__main__":
         messagebox.showinfo("提示", f"图标加载失败: {e}")
     startPage.tk.call('tk', 'scaling', ScaleFactor/75)
     startPage.title("可视化工具参数")
-    startPage.geometry("600x300")
+    startPage.geometry("600x460")
     startPage.resizable(False, False)
 
     #创建用户文件夹
@@ -360,11 +390,11 @@ if __name__ == "__main__":
             with open(configPath, "w") as f:
                 json.dump({
                     "setings": {
-                        "datapath": "",
+                        "datapath": [],
                         "APIKey": ""
                     }
                 }, f)
-            dataPath = ""
+            dataPath = []
             APIKey = ""
         except Exception as e:
             messagebox.showinfo("提示", f"创建配置文件失败: {e}")
@@ -381,11 +411,11 @@ if __name__ == "__main__":
                 with open(configPath, "w") as f:
                     json.dump({
                     "setings": {
-                        "datapath": "",
+                        "datapath": [],
                         "APIKey": ""
                         }
                     }, f)
-                dataPath = ""
+                dataPath = []
                 APIKey = ""
 
     framel1 = tk.LabelFrame(startPage)
@@ -394,7 +424,7 @@ if __name__ == "__main__":
     lable1 = tk.Label(framel1, text="数据路径", width = 7, height = 2)
     lable2 = tk.Label(framel2, text="API Key", width = 7, height = 2)
     lable3 = tk.Label(framel3, text="", width = 7, height = 2)
-    entry1 = tk.Entry(framel1, textvariable=dataPath,width =34)
+    text1 = tk.Text(framel1, width=34, height=10)
     entry2 = tk.Entry(framel2, textvariable=APIKey,width = 39)
     button1 = tk.Button(framel1, text="选择", command=pathButton)
     button2 = tk.Button(framel3, text="保存", command=saveButton, width = 7)
@@ -402,7 +432,8 @@ if __name__ == "__main__":
     button4 = tk.Button(framel3, text="更新数据启动", command=mapButtonWithUpdate, width = 14)
     lable4 = tk.Label(startPage, text="API Key使用天地图API")
 
-    entry1.insert(0, dataPath)
+    if dataPath:
+        text1.insert("1.0", "\n".join(dataPath))
     entry2.insert(0, APIKey)
 
     framel1.grid(row=0, column=0, padx=10, pady=10)
@@ -411,7 +442,7 @@ if __name__ == "__main__":
     framel3.grid(row=3, column=0, padx=10, pady=10)
     lable1.grid(row=0, column=0)
     lable2.grid(row=0, column=0)
-    entry1.grid(row=0, column=1)
+    text1.grid(row=0, column=1)
     entry2.grid(row=0, column=1)
     button1.grid(row=0, column=2)
     button2.grid(row=0, column=0)
